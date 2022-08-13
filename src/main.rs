@@ -1,10 +1,10 @@
-use clap::Parser;
-use serde::{Deserialize, Serialize};
-use serde_json;
+mod encounter_table;
 
-use std::fs::File;
-use std::io::{BufReader, ErrorKind};
+use clap::Parser;
+
 use std::process;
+
+use encounter_table::{EncounterTable, Level};
 
 /// Simple program for working out an encounter level for 5e DnD
 #[derive(Parser, Debug)]
@@ -16,68 +16,17 @@ struct Args {
     ///difficulty either (e)asy, (m)edium, (h)ard or (d)eadly
     #[clap(short, long, value_parser)]
     difficulty: Option<String>,
-    ///path to encounter table (defaults to encounter_table.json in local folder)
+    ///path to encounter table (defaults to using encounter table details from the DMG)
     #[clap(short, long, value_parser)]
     path: Option<String>,
-}
-
-#[derive(Deserialize, Serialize)]
-struct EncounterTable {
-    pub easy: Vec<u32>,
-    pub medium: Vec<u32>,
-    pub hard: Vec<u32>,
-    pub deadly: Vec<u32>,
-}
-
-enum Level {
-    EASY,
-    MEDIUM,
-    HARD,
-    DEADLY,
 }
 
 fn main() {
     let args = Args::parse();
     let levels = get_levels(&args);
     let difficulty = get_difficulty(&args);
-    let path_to_encounter_table = get_path(&args);
-    let encounter_table = get_encounter_table(&path_to_encounter_table);
+    let encounter_table = encounter_table::get_encounter_table(&args.path);
     outcome(&encounter_table, &levels, &difficulty);
-}
-
-fn get_path(args: &Args) -> String {
-    match &args.path {
-        Some(path) => String::from(path),
-        None => String::from("./encounter_table.json"),
-    }
-}
-
-fn get_encounter_table(path: &String) -> EncounterTable {
-    let file = match File::open(path) {
-        Ok(file) => file,
-        Err(ref e) if e.kind() == ErrorKind::NotFound => {
-            eprintln!(
-                "Encounter table json not found at: {}, please check path",
-                &path
-            );
-            process::exit(1);
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            process::exit(1);
-        }
-    };
-    let reader = BufReader::new(file);
-    match serde_json::from_reader(reader) {
-        Ok(encounter_table) => encounter_table,
-        Err(e) => {
-            eprintln!(
-                "Unable to construct Encounter Table from JSON, error received:\n{}",
-                e
-            );
-            process::exit(1);
-        }
-    }
 }
 
 fn outcome(encounter_table: &EncounterTable, levels: &Vec<u8>, difficulty: &Option<Level>) {
